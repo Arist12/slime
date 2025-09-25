@@ -6,6 +6,7 @@ from slime.ray.registry import register_actor
 from slime.utils.arguments import parse_args
 from slime.utils.wandb_utils import init_wandb_primary
 
+from tqdm import tqdm
 
 def train(args):
     # allocate the GPUs
@@ -66,7 +67,7 @@ def train(args):
 
     # train loop.
     # note that for async training, one can change the position of the sync operation(ray.get).
-    for rollout_id in range(args.start_rollout_id, args.num_rollout):
+    for rollout_id in tqdm(range(args.start_rollout_id, args.num_rollout), desc="Training Progress", unit="rollout"):
         # TODO extract the duplicated eval logic
         if args.eval_interval is not None and rollout_id == 0:
             ray.get(rollout_manager.eval.remote(rollout_id))

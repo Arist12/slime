@@ -6,6 +6,7 @@ import aiohttp
 from slime.utils.misc import load_function
 from slime.utils.types import Sample
 
+from .code_rm import code_rm, code_rm_simple
 from .deepscaler import get_deepscaler_rule_based_reward
 from .f1 import f1_score
 from .math_dapo_utils import compute_score as compute_score_dapo
@@ -50,6 +51,10 @@ async def async_rm(args, sample: Sample, **kwargs):
         return 1 if grade_answer_verl(response, label) else 0
     elif rm_type == "f1":
         return f1_score(response, label)[0]
+    elif rm_type == "code_rm_simple":
+        metadata = sample.metadata
+        assert isinstance(metadata, dict), "metadata must be a dictionary"
+        return code_rm_simple(response, label, metadata)
     else:
         raise NotImplementedError(f"Rule-based RM for {type} is not implemented.")
 
