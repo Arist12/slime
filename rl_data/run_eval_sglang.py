@@ -85,6 +85,7 @@ async def main():
     parser.add_argument(
         "--model",
         default="Qwen/Qwen3-4B",
+        choices=["Qwen/Qwen3-4B", "Qwen/Qwen3-8B", "Qwen/Qwen3-30B-A3B"],
         help="Model to use for evaluation",
     )
     parser.add_argument("--port", type=int, default=30000, help="Port to use for evaluation")
@@ -96,7 +97,6 @@ async def main():
     )
     parser.add_argument("--max_concurrent", type=int, default=256, help="Maximum number of concurrent API calls")
     parser.add_argument("--output_dir", default="./results", help="Directory to save results")
-    parser.add_argument("--output_file", default="results.jsonl", help="File to save results")
 
     args = parser.parse_args()
 
@@ -106,25 +106,26 @@ async def main():
     # Initialize evaluation runner
     runner = EvaluationRunner(args.model, args.port)
 
+    model_name = args.model.split("/")[-1]
     # Run evaluations based on benchmark choice
     if args.benchmark == "fast_edit" or args.benchmark == "all":
         print("Loading fast editing benchmark...")
         fast_edit_data = load_from_jsonl("./fast_editing_benchmark.jsonl")
-        output_file = os.path.join(args.output_dir, args.output_file)
+        output_file = os.path.join(args.output_dir, f"{model_name}_fast_edit__results.jsonl")
         print(f"Running evaluation on fast editing benchmark with {args.model}...")
         await runner.run_evaluation(fast_edit_data, output_file, args.max_concurrent)
 
     if args.benchmark == "find_replace" or args.benchmark == "all":
         print("Loading find_replace benchmark...")
         find_replace_data = load_from_jsonl("./find_replace_benchmark.jsonl")
-        output_file = os.path.join(args.output_dir, args.output_file)
+        output_file = os.path.join(args.output_dir, f"{model_name}_find_replace__results.jsonl")
         print(f"Running evaluation on find_replace benchmark with {args.model}...")
         await runner.run_evaluation(find_replace_data, output_file, args.max_concurrent)
 
     if args.benchmark == "fully_rewrite" or args.benchmark == "all":
         print("Loading fully_rewrite benchmark...")
         fully_rewrite_data = load_from_jsonl("./fully_rewrite_benchmark.jsonl")
-        output_file = os.path.join(args.output_dir, args.output_file)
+        output_file = os.path.join(args.output_dir, f"{model_name}_fully_rewrite__results.jsonl")
         print(f"Running evaluation on fully_rewrite benchmark with {args.model}...")
         await runner.run_evaluation(fully_rewrite_data, output_file, args.max_concurrent)
 
