@@ -44,7 +44,7 @@ ROLLOUT_ARGS=(
 
    --rm-type code_rm_simple
 
-   --num-rollout 280
+   --num-rollout 281
    --rollout-batch-size 32
    --n-samples-per-prompt 8
    --global-batch-size 256
@@ -70,7 +70,7 @@ PERF_ARGS=(
    --tensor-model-parallel-size 2
    --sequence-parallel
    --pipeline-model-parallel-size 1
-   --context-parallel-size 1
+   --context-parallel-size 2
    --expert-model-parallel-size 1
    --expert-tensor-parallel-size 1
 
@@ -80,7 +80,7 @@ PERF_ARGS=(
 
    # --micro-batch-size 1
    --use-dynamic-batch-size
-   --max-tokens-per-gpu 9216
+   --max-tokens-per-gpu 4608
 )
 
 GRPO_ARGS=(
@@ -111,7 +111,7 @@ WANDB_ARGS=(
 
 SGLANG_ARGS=(
    --rollout-num-gpus-per-engine 2
-   --sglang-mem-fraction-static 0.7
+   --sglang-mem-fraction-static 0.65
 )
 
 MISC_ARGS=(
