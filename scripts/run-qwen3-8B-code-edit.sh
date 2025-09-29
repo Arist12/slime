@@ -31,11 +31,11 @@ CKPT_ARGS=(
    --ref-load /mnt/local/hf_cache/hub/Qwen3-8B_torch_dist
    --load /mnt/local/hf_cache/hub/Qwen3-8B_slime/
    --save /mnt/local/hf_cache/hub/Qwen3-8B_slime/
-   --save-interval 20
+   --save-interval 40
 )
 
 ROLLOUT_ARGS=(
-   --prompt-data /mnt/local/yikai/slime/data/code_editing_train.jsonl
+   --prompt-data /mnt/local/yikai/slime/data/code_editing_new_train.jsonl
    --input-key prompt
    --label-key label
    --metadata-key metadata
@@ -44,14 +44,14 @@ ROLLOUT_ARGS=(
 
    --rm-type code_rm_simple
 
-   --num-rollout 281
+   --num-rollout 521
    --rollout-batch-size 32
    --n-samples-per-prompt 8
    --global-batch-size 256
 
    # Rollout sampling parameters
-   --rollout-max-response-len 16384
-   --rollout-temperature 1
+   --rollout-max-response-len 8192
+   --rollout-temperature 0.8
 
    # Load balancing for data collected in rollout phase.
    --balance-data
@@ -59,9 +59,9 @@ ROLLOUT_ARGS=(
 
 EVAL_ARGS=(
    --eval-interval 20
-   --eval-prompt-data code_editing /mnt/local/yikai/slime/data/code_editing_val.jsonl
-   --n-samples-per-eval-prompt 3
-   --eval-max-response-len 16384
+   --eval-prompt-data code_editing /mnt/local/yikai/slime/data/code_editing_new_val.jsonl
+   --n-samples-per-eval-prompt 5
+   --eval-max-response-len 8192
    --eval-top-p 0.7
 )
 
@@ -78,7 +78,6 @@ PERF_ARGS=(
    --recompute-method uniform
    --recompute-num-layers 1
 
-   # --micro-batch-size 1
    --use-dynamic-batch-size
    --max-tokens-per-gpu 4608
 )
@@ -105,13 +104,13 @@ OPTIMIZER_ARGS=(
 WANDB_ARGS=(
    --use-wandb
    --wandb-project slime-dev
-   --wandb-group qwen3-8B-code-edit-simple-reward
+   --wandb-group qwen3-8B-new-code-edit-simple-reward
    --wandb-key ${WANDB_KEY}
 )
 
 SGLANG_ARGS=(
    --rollout-num-gpus-per-engine 2
-   --sglang-mem-fraction-static 0.65
+   --sglang-mem-fraction-static 0.7
 )
 
 MISC_ARGS=(

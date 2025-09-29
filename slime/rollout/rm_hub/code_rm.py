@@ -19,30 +19,19 @@ def code_rm_simple(response: str, label: str, metadata: dict) -> float:
     Returns:
         Float score between 0.0 and 1.0
     """
-    # Assert metadata has required keys
-    assert "original_code" in metadata, "original_code must be in metadata"
-
     original_code = metadata["original_code"]
 
     if not response or not label:
         return 0.0
 
     # Determine which format the model used and extract the modified code
-    modified_code, _ = extract_modified_code(response, original_code)
+    modified_code = extract_model_code(response, original_code)
 
     if modified_code is None:
-        # Both formats failed or invalid format
         return 0.0
 
-    if modified_code == label:
+    if modified_code == label or normalize_code(modified_code) == normalize_code(label):
         return 1.0
-
-    # Normalize both codes for comparison
-    normalized_modified = normalize_code(modified_code)
-    normalized_ground_truth = normalize_code(label)
-
-    if normalized_modified == normalized_ground_truth:
-        return 0.8  # High score for normalized match
 
     return 0
 
@@ -84,6 +73,42 @@ def code_rm(response: str, label: str, metadata: dict) -> float:
     final_score = 0.9 * accuracy_score + 0.1 * token_efficiency_score
 
     return max(0.0, min(1.0, final_score))
+
+
+def extract_model_code(response: str, original_code: str) -> str | None:
+    """
+    Extract model code from response.
+    Handles both targeted edits (non-empty SEARCH) and full rewrites (empty SEARCH).
+    """
+    try:
+        # Pattern to match SEARCH/REPLACE blocks
+        pattern = r"<SEARCH>\n(.*?)</SEARCH>\n<REPLACE>\n(.*?)</REPLACE>"
+        matches = re.findall(pattern, response, re.DOTALL)
+
+        if not matches:
+            return None
+
+        first_search, first_replace = matches[0]
+        if first_search == "":
+            # Full rewrite mode: must have exactly one SEARCH/REPLACE block
+            if len(matches) > 1:
+                return None
+            return first_replace
+
+        # Targeted edits: Apply each SEARCH/REPLACE block
+        modified_code = original_code
+        for search_text, replace_text in matches:
+            # Check if search text exists in the current code
+            if search_text not in modified_code:
+                return None
+
+            # Apply the replacement: Use replace with count=1 to replace only the first occurrence
+            modified_code = modified_code.replace(search_text, replace_text, 1)
+
+        return modified_code
+
+    except Exception:
+        return None
 
 
 def extract_modified_code(response: str, original_code: str) -> Tuple[Optional[str], Optional[str]]:

@@ -191,3 +191,6 @@ local/
 glm/
 _examples_synced/
 .env
+
+# any folder starting with results
+results*/

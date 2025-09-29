@@ -153,8 +153,7 @@ def print_statistics(stats: dict[str, Any], file_path: str):
 def main():
     parser = argparse.ArgumentParser(description="Grade unified benchmark evaluation results")
     parser.add_argument("result_file", help="Path to the result JSONL file")
-    parser.add_argument("--model", default="Qwen/Qwen3-4B", help="Model name or path")
-    parser.add_argument("--output", action="store_true", help="Save graded results")
+    parser.add_argument("--model", default="Qwen/Qwen3-8B", choices=["Qwen/Qwen3-4B", "Qwen/Qwen3-8B", "Qwen/Qwen3-30B-A3B"], help="Model name or path")
     args = parser.parse_args()
 
     try:
@@ -169,9 +168,8 @@ def main():
         print_statistics(stats, args.result_file)
 
         # Save graded results if output path provided
-        if args.output:
-            save_to_jsonl(results, args.result_file.replace(".jsonl", "_graded.jsonl"))
-            print(f"\nGraded results saved to: {args.result_file.replace('.jsonl', '_graded.jsonl')}")
+        save_to_jsonl(results, args.result_file.replace(".jsonl", "_graded.jsonl"))
+        print(f"\nGraded results saved to: {args.result_file.replace('.jsonl', '_graded.jsonl')}")
 
     except FileNotFoundError:
         print(f"Error: Could not find file '{args.result_file}'")
