@@ -2,7 +2,7 @@ import argparse
 import json
 from typing import Any
 from tqdm import tqdm
-from utils import load_from_jsonl, save_to_jsonl, determine_format_and_success, normalize_code, calculate_token_consumption
+from utils import load_from_jsonl, save_to_jsonl, determine_format_and_success, normalize_code, calculate_token_consumption, determine_format_and_success_with_extract_model_code
 from transformers import AutoTokenizer
 
 
@@ -33,7 +33,7 @@ def grade_unified_benchmark(results: list[dict[str, Any]], tokenizer: AutoTokeni
         model_response = result["model_response"]
 
         # Determine edit mode and extract result
-        edit_mode, format_success, extracted_code = determine_format_and_success(model_response, original_code)
+        edit_mode, format_success, extracted_code = determine_format_and_success_with_extract_model_code(model_response, original_code)
 
         # Calculate matches
         if format_success:

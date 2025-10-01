@@ -84,7 +84,7 @@ async def main():
     parser = argparse.ArgumentParser(description="Run evaluation on code editing benchmarks")
     parser.add_argument(
         "--model",
-        default="Qwen/Qwen3-4B",
+        default="Qwen/Qwen3-8B",
         choices=["Qwen/Qwen3-4B", "Qwen/Qwen3-8B", "Qwen/Qwen3-30B-A3B"],
         help="Model to use for evaluation",
     )
@@ -95,7 +95,7 @@ async def main():
         default="fast_edit",
         help="Which benchmark to run",
     )
-    parser.add_argument("--max_concurrent", type=int, default=256, help="Maximum number of concurrent API calls")
+    parser.add_argument("--max_concurrent", type=int, default=500, help="Maximum number of concurrent API calls")
     parser.add_argument("--output_dir", default="./results", help="Directory to save results")
 
     args = parser.parse_args()
@@ -110,8 +110,8 @@ async def main():
     # Run evaluations based on benchmark choice
     if args.benchmark == "fast_edit" or args.benchmark == "all":
         print("Loading fast editing benchmark...")
-        fast_edit_data = load_from_jsonl("./fast_editing_benchmark.jsonl")
-        output_file = os.path.join(args.output_dir, f"{model_name}_fast_edit__results.jsonl")
+        fast_edit_data = load_from_jsonl("./fast_editing_benchmark_wodemo.jsonl")
+        output_file = os.path.join(args.output_dir, f"{model_name}_wo_demo_results.jsonl")
         print(f"Running evaluation on fast editing benchmark with {args.model}...")
         await runner.run_evaluation(fast_edit_data, output_file, args.max_concurrent)
 

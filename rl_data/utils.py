@@ -21,6 +21,42 @@ def save_to_jsonl(data: list[dict[str, Any]], file_path: str) -> None:
             f.write(json.dumps(item) + "\n")
 
 
+def extract_model_code(response: str, original_code: str):
+    """
+    Extract model code from response.
+    Handles both targeted edits (non-empty SEARCH) and full rewrites (empty SEARCH).
+    """
+    try:
+        # Pattern to match SEARCH/REPLACE blocks
+        pattern = r"<SEARCH>\n(.*?)</SEARCH>\n<REPLACE>\n(.*?)</REPLACE>"
+        matches = re.findall(pattern, response, re.DOTALL)
+
+        if not matches:
+            return "failed", None
+
+        first_search, first_replace = matches[0]
+        if first_search == "":
+            # Full rewrite mode: must have exactly one SEARCH/REPLACE block
+            if len(matches) > 1:
+                return "fully_rewrite", None
+            return "fully_rewrite", first_replace
+
+        # Targeted edits: Apply each SEARCH/REPLACE block
+        modified_code = original_code
+        for search_text, replace_text in matches:
+            # Check if search text exists in the current code
+            if search_text not in modified_code:
+                return "find_replace", None
+
+            # Apply the replacement: Use replace with count=1 to replace only the first occurrence
+            modified_code = modified_code.replace(search_text, replace_text, 1)
+
+        return "find_replace", modified_code
+
+    except Exception:
+        return "failed", None
+
+
 def extract_code_from_response(response: str) -> str:
     """Extract code from markdown code blocks."""
     # Handle None or non-string responses
@@ -67,6 +103,15 @@ def normalize_code(code: str) -> str:
     code = code.strip()
 
     return code
+
+
+def determine_format_and_success_with_extract_model_code(response: str, original_code: str) -> tuple[str, bool, str]:
+    """
+    Determine the format used and whether it was successful.
+    Returns: (format_used, format_success, extracted_code)
+    """
+    format_used, extracted_code = extract_model_code(response, original_code)
+    return format_used, extracted_code is not None, extracted_code
 
 
 def determine_format_and_success(response: str, original_code: str) -> tuple[str, bool, str]:
