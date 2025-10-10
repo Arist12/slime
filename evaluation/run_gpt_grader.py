@@ -132,17 +132,17 @@ async def evaluate_diffs_async(results: list[dict], diffs: list[dict],
 
 async def main():
     parser = argparse.ArgumentParser(description="Grade evaluation results")
-    parser.add_argument("result_file", required=True, help="Path to the results JSONL file")
+    parser.add_argument("result_file", help="Path to the results JSONL file")
     parser.add_argument("--max-concurrent", type=int, default=15,
                        help="Maximum number of concurrent API requests")
 
     args = parser.parse_args()
 
     print(f"\n{'=' * 60}")
-    print(f"Grading: {args.results}")
+    print(f"Grading: {args.result_file}")
     print(f"{'=' * 60}")
 
-    results = load_from_jsonl(args.results)
+    results = load_from_jsonl(args.result_file)
     print(f"Total test cases: {len(results)}")
 
     diffs = get_diffs(results)
@@ -155,7 +155,7 @@ async def main():
 
     # compute accuracy
     accuracy = sum(result["gpt_eval_match"] for result in results) / len(results)
-    print(f"GPT-4.1 Evaluation Accuracy: {accuracy * 100:.2f}% ({sum(result['gpt_eval_match'] for result in results)}/{len(results)})")
+    print(f"GPT-4.1 Evaluation Accuracy of {args.result_file.split('/')[-1]}: {accuracy * 100:.2f}% ({sum(result['gpt_eval_match'] for result in results)}/{len(results)})")
 
 if __name__ == "__main__":
     asyncio.run(main())

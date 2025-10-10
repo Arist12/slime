@@ -20,7 +20,7 @@ MODEL_DEPLOYMENTS = {
     "gpt-5": "deepprompt-gpt-5-2025-08-07-global",
     "gpt-5-mini": "deepprompt-gpt-5-mini-2025-08-07-global",
     "gpt-5-nano": "deepprompt-gpt-5-nano-2025-08-07-global",
-    "claude-4-sonnet": "claude-sonnet-4-0",
+    "claude-sonnet-4": "claude-sonnet-4-0",
 }
 
 BENCHMARKS = {
@@ -36,19 +36,19 @@ BENCHMARKS = {
 class EvaluationRunner:
     def __init__(self, model: str, port: int = 30000):
         self.model = model
-        self.client_type = "openai" if not self.model.startswith("claude") else "anthropic"
+        self.client_type = "openai" if not "claude" in self.model.lower() else "anthropic"
 
         self._set_client(self.model, port)
 
     def _set_client(self, model: str, port: int):
-        if model in MODEL_DEPLOYMENTS:
+        if "claude" in model.lower():
+            self.client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY", None))
+        elif model in MODEL_DEPLOYMENTS:
             self.client = AsyncAzureOpenAI(
                 api_version="2024-12-01-preview",
                 azure_endpoint="https://deepprompteastus2.openai.azure.com/",
                 api_key=os.getenv("OPENAI_API_KEY", None),
             )
-        elif model.startswith("claude"):
-            self.client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY", None))
         else:
             self.client = AsyncOpenAI(base_url=f"http://127.0.0.1:{port}/v1", api_key="None")
 
@@ -62,7 +62,6 @@ class EvaluationRunner:
             return await self._get_anthropic_response(system_prompt, user_prompt)
         else:
             raise ValueError(f"Invalid client type: {self.client_type}")
-
 
     async def _get_openai_response(self, system_prompt: str, user_prompt: str) -> str:
         """Get response from openai api"""
