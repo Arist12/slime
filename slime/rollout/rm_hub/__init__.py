@@ -6,7 +6,7 @@ import aiohttp
 from slime.utils.misc import load_function
 from slime.utils.types import Sample
 
-from .code_rm import code_rm, code_rm_simple
+from .code_rm import code_rm_simple
 from .deepscaler import get_deepscaler_rule_based_reward
 from .f1 import f1_score
 from .math_dapo_utils import compute_score as compute_score_dapo
