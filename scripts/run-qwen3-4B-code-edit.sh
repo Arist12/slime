@@ -27,38 +27,46 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 source "${SCRIPT_DIR}/models/qwen3-4B.sh"
 
 CKPT_ARGS=(
-   --hf-checkpoint /root/Qwen3-4B
-   #--hf-checkpoint /root/Qwen3-4B-FP8
-   --ref-load /root/Qwen3-4B_torch_dist
-   --load /root/Qwen3-4B_slime/
-   --save /root/Qwen3-4B_slime/
-   --save-interval 20
+   --hf-checkpoint /mnt/local/hf_cache/hub/Qwen3-4B
+   --ref-load /mnt/local/hf_cache/hub/Qwen3-4B_torch_dist
+   --load /mnt/local/hf_cache/hub/Qwen3-4B_slime/
+   --save /mnt/local/hf_cache/hub/Qwen3-4B_slime/
+   --save-interval 40
 )
 
+
 ROLLOUT_ARGS=(
-   --prompt-data /root/dapo-math-17k/dapo-math-17k.jsonl
+   --prompt-data /mnt/local/yikai/slime/data/llm_code_editing_train.jsonl
    --input-key prompt
    --label-key label
+   --metadata-key metadata
    --apply-chat-template
    --rollout-shuffle
-   --rm-type deepscaler
-   --num-rollout 3000
+
+   --rm-type code_rm_simple
+
+   --num-rollout 521
    --rollout-batch-size 32
    --n-samples-per-prompt 8
+   --global-batch-size 256
+
+   # Rollout sampling parameters
    --rollout-max-response-len 8192
    --rollout-temperature 0.8
 
-   --global-batch-size 256
+   # Load balancing for data collected in rollout phase.
    --balance-data
 )
 
+
 EVAL_ARGS=(
    --eval-interval 20
-   --eval-prompt-data aime /root/aime-2024/aime-2024.jsonl
-   --n-samples-per-eval-prompt 16
-   --eval-max-response-len 16384
+   --eval-prompt-data code_editing /mnt/local/yikai/slime/data/llm_code_editing_val.jsonl
+   --n-samples-per-eval-prompt 5
+   --eval-max-response-len 8192
    --eval-top-p 0.7
 )
+
 
 PERF_ARGS=(
    --tensor-model-parallel-size 2
@@ -72,7 +80,6 @@ PERF_ARGS=(
    --recompute-method uniform
    --recompute-num-layers 1
 
-   # --micro-batch-size 1
    --use-dynamic-batch-size
    --max-tokens-per-gpu 9216
 )
@@ -97,10 +104,10 @@ OPTIMIZER_ARGS=(
 )
 
 WANDB_ARGS=(
-   # --use-wandb
-   # --wandb-project slime-dev
-   # --wandb-group qwen3-4B-test
-   # --wandb-key ${WANDB_KEY}
+   --use-wandb
+   --wandb-project code-edit
+   --wandb-group qwen3-4B
+   --wandb-key ${WANDB_KEY}
 )
 
 SGLANG_ARGS=(
