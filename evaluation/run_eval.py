@@ -30,6 +30,7 @@ BENCHMARKS = {
     "fast_edit_v3": "./benchmarks/fast_editing_benchmark_v3.jsonl",
     "find_replace": "./benchmarks/find_replace_benchmark.jsonl",
     "fully_rewrite": "./benchmarks/fully_rewrite_benchmark.jsonl",
+    "new": "/mnt/local/yikai/slime/data/llm_code_editing_test.jsonl"
 }
 
 
@@ -55,20 +56,17 @@ class EvaluationRunner:
         if model in MODEL_DEPLOYMENTS:
             self.model = MODEL_DEPLOYMENTS[model]
 
-    async def get_model_response(self, system_prompt: str, user_prompt: str) -> str:
+    async def get_model_response(self, user_prompt: str) -> str:
         if self.client_type == "openai":
-            return await self._get_openai_response(system_prompt, user_prompt)
+            return await self._get_openai_response(user_prompt)
         elif self.client_type == "anthropic":
-            return await self._get_anthropic_response(system_prompt, user_prompt)
+            return await self._get_anthropic_response(user_prompt)
         else:
             raise ValueError(f"Invalid client type: {self.client_type}")
 
-    async def _get_openai_response(self, system_prompt: str, user_prompt: str) -> str:
+    async def _get_openai_response(self, user_prompt: str) -> str:
         """Get response from openai api"""
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": user_prompt})
+        messages = [{"role": "user", "content": user_prompt}]
 
         if "qwen" in self.model.lower():
             response = await self.client.chat.completions.create(
@@ -88,30 +86,26 @@ class EvaluationRunner:
             )
         return response.choices[0].message.content
 
-    async def _get_anthropic_response(self, system_prompt: str, user_prompt: str) -> str:
+    async def _get_anthropic_response(self, user_prompt: str) -> str:
         """Get response from anthropic api"""
         response = await self.client.messages.create(
             model=self.model,
             max_tokens=16384,
-            system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
         )
         return response.content[0].text
 
     async def process_single_item(self, item: dict[str, Any], item_id: int) -> dict[str, Any]:
         """Process a single benchmark item and return the result."""
-        system_prompt = item["system_prompt"]
-        user_prompt = item["user_prompt"]
-        ground_truth = item["ground_truth"]
-        original_code = item["original_code"]
-        language = item["metadata"]["language"]
+        user_prompt = item["prompt"][0]["content"]
+        ground_truth = item["label"]
+        original_code = item["metadata"]["original_code"]
 
-        model_response = await self.get_model_response(system_prompt, user_prompt)
+        model_response = await self.get_model_response(user_prompt)
 
         return {
             "id": item_id,
-            "language": language,
-            "prompt": system_prompt+user_prompt,
+            "prompt": user_prompt,
             "original_code": original_code,
             "ground_truth": ground_truth,
             "model_response": model_response,
@@ -157,8 +151,8 @@ async def main():
     parser.add_argument("--sglang_port", type=int, default=30000, help="Port to use for evaluation")
     parser.add_argument(
         "--benchmark",
-        choices=["fast_edit_v0", "fast_edit_v1", "fast_edit_v2", "fast_edit_v3", "find_replace", "fully_rewrite", "all", "both"],
-        default="fast_edit_v2",
+        choices=["fast_edit_v0", "fast_edit_v1", "fast_edit_v2", "fast_edit_v3", "find_replace", "fully_rewrite", "new", "all", "both"],
+        default="new",
         help="Which benchmarks to run. 'all' will run fast_edit_v2, find_replace, and fully_rewrite by default",
     )
     parser.add_argument("--max_concurrent", type=int, default=500, help="Maximum number of concurrent API calls")

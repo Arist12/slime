@@ -2,7 +2,7 @@ import argparse
 import json
 from typing import Any, Callable
 from tqdm import tqdm
-from utils import load_from_jsonl, save_to_jsonl, calculate_token_consumption, determine_format_and_success_v0, determine_format_and_success_v1, normalize_code, get_qwen_tokenizer
+from utils import load_from_jsonl, save_to_jsonl, calculate_token_consumption, extract_model_code, normalize_code, get_qwen_tokenizer, code_edit_grader
 from transformers import AutoTokenizer
 
 
@@ -12,7 +12,6 @@ def grade_code_edit_benchmark(result_file: str, tokenizer: AutoTokenizer) -> dic
     # Load results
     print(f"Loading results from {result_file}...")
     results = load_from_jsonl(result_file)
-    grader = determine_format_and_success_v1 if any(version in result_file for version in ["v1", "v2", "v3"]) else determine_format_and_success_v0
 
     stats = {
         "total_samples": 0,
@@ -39,7 +38,7 @@ def grade_code_edit_benchmark(result_file: str, tokenizer: AutoTokenizer) -> dic
         model_response = result["model_response"]
 
         # Determine edit mode and extract result
-        edit_mode, format_success, extracted_code = grader(model_response, original_code)
+        edit_mode, format_success, extracted_code = code_edit_grader(model_response, original_code)
 
         # Calculate matches
         if format_success:
@@ -86,7 +85,6 @@ def grade_code_edit_benchmark(result_file: str, tokenizer: AutoTokenizer) -> dic
                 stats["fully_rewrite_exact_matches"] += 1
             if normalized_match:
                 stats["fully_rewrite_normalized_matches"] += 1
-
         else:
             stats["format_failures"] += 1
 

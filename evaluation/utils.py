@@ -21,113 +21,63 @@ def save_to_jsonl(data: list[dict[str, Any]], file_path: str) -> None:
             f.write(json.dumps(item) + "\n")
 
 
-def extract_model_code(response: str, original_code: str):
+def extract_model_code(response: str, original_code: str) -> tuple[str | None, str | None]:
     """
     Extract model code from response.
     Handles both targeted edits (non-empty SEARCH) and full rewrites (empty SEARCH).
+    Returns: (edit_mode, extracted_code) or (None, None) on failure.
     """
     try:
-        # Pattern to match SEARCH/REPLACE blocks
-        pattern = r"<SEARCH>\n(.*?)</SEARCH>\n<REPLACE>\n(.*?)</REPLACE>"
-        matches = re.findall(pattern, response, re.DOTALL)
+        # Pattern to match SEARCH/REPLACE blocks (aligned with LLMFileEditor format)
+        pattern = r"<<<<<<< SEARCH\n(.*?)=======\n(.*?)>>>>>>> REPLACE"
+        matches = list(re.finditer(pattern, response, re.DOTALL))
 
         if not matches:
-            return "failed", None
+            return None, None
 
-        first_search, first_replace = matches[0]
-        if first_search == "":
+        # Extract first search and replace blocks
+        first_search = matches[0].group(1)
+        first_replace = matches[0].group(2)
+
+        # Check if this is a full rewrite (empty search block)
+        if first_search.strip() == "":
             # Full rewrite mode: must have exactly one SEARCH/REPLACE block
             if len(matches) > 1:
-                return "fully_rewrite", None
-            return "fully_rewrite", first_replace
+                return None, None
+            return "fully_rewrite", first_replace.rstrip("\n")
 
         # Targeted edits: Apply each SEARCH/REPLACE block
         modified_code = original_code
-        for search_text, replace_text in matches:
-            # Check if search text exists in the current code
-            if search_text not in modified_code:
-                return "find_replace", None
+        for match in matches:
+            search_block = match.group(1).rstrip("\n")
+            replace_block = match.group(2).rstrip("\n")
 
-            # Apply the replacement: Use replace with count=1 to replace only the first occurrence
-            modified_code = modified_code.replace(search_text, replace_text, 1)
+            # Check if search block exists in the current code
+            if search_block not in modified_code:
+                return None, None
+
+            # Check for multiple occurrences (ambiguous, should error)
+            occurrences = modified_code.count(search_block)
+            if occurrences > 1:
+                return None, None
+
+            # Apply the replacement: replace only the first occurrence
+            modified_code = modified_code.replace(search_block, replace_block, 1)
 
         return "find_replace", modified_code
 
     except Exception:
-        return "failed", None
+        return None, None
 
 
-def determine_format_and_success_v1(response: str, original_code: str) -> tuple[str, bool, str]:
+def code_edit_grader(response: str, original_code: str) -> tuple[str, bool, str]:
     """
     Determine the format used and whether it was successful.
-    Returns: (format_used, format_success, extracted_code)
+    Returns: (edit_mode, format_success, extracted_code)
     """
-    format_used, extracted_code = extract_model_code(response, original_code)
-    return format_used, extracted_code is not None, extracted_code
-
-
-def determine_format_and_success_v0(response: str, original_code: str) -> tuple[str, bool, str]:
-    """
-    Determine the format used and whether it was successful.
-    Returns: (format_used, format_success, extracted_code)
-    """
-    # Try find_replace format first
-    find_replace_result = try_find_replace_format(response, original_code)
-    if find_replace_result is not None:
-        if find_replace_result == "failed":
-            return "find_replace", False, None
-        else:
-            return "find_replace", True, find_replace_result
-
-    # Try fully_rewrite format
-    fully_rewrite_result = try_fully_rewrite_format(response)
-    if fully_rewrite_result is not None:
-        return "fully_rewrite", True, fully_rewrite_result
-
-    # Neither format worked
-    return "failed", False, None
-
-
-
-def try_find_replace_format(response: str, original_code: str) -> str:
-    """Try to extract and apply find_replace blocks from the response."""
-    try:
-        # Pattern to match SEARCH/REPLACE blocks
-        pattern = r"<SEARCH>\n(.*?)</SEARCH>\n<REPLACE>\n(.*?)</REPLACE>"
-        matches = re.findall(pattern, response, re.DOTALL)
-
-        if not matches:
-            return None
-
-        # Apply each SEARCH/REPLACE block
-        modified_code = original_code
-        for search_text, replace_text in matches:
-            if search_text not in modified_code:
-                return "failed"
-
-            # Apply the replacement: Use replace with count=1 to replace only the first occurrence
-            modified_code = modified_code.replace(search_text, replace_text, 1)
-
-        return modified_code
-
-    except Exception:
-        return None
-
-
-def try_fully_rewrite_format(response: str) -> str:
-    """Try to extract fully rewritten code from the response."""
-    try:
-        # Pattern to match code blocks (with or without language specification)
-        pattern = r"```(?:\S+)?\s*\n(.*?)\n```"
-        matches = re.findall(pattern, response, re.DOTALL)
-
-        if matches:
-            return matches[0].strip()
-        else:
-            return None
-
-    except Exception:
-        return None
+    edit_mode, extracted_code = extract_model_code(response, original_code)
+    format_success = extracted_code is not None
+    return edit_mode, format_success, extracted_code
 
 
 def calculate_token_consumption(tokenizer: AutoTokenizer, response: str) -> int:
@@ -143,27 +93,27 @@ def normalize_code(code: str) -> str:
     """
     Normalize code by removing comments and normalizing whitespace.
     This allows for comparison that tolerates comment and whitespace differences.
+
+    Note: This uses regex-based heuristics and may incorrectly handle
+    comment-like patterns inside string literals (e.g., "http://url" or "# not a comment").
+    For most code comparison tasks, this is an acceptable trade-off.
     """
-    # Remove single-line comments (// and #)
+    # Remove multi-line comments first (before single-line to handle edge cases properly)
+    # C-style /* */ comments
+    code = re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL)
+    # Python docstrings / multi-line strings used as comments
+    code = re.sub(r'""".*?"""', "", code, flags=re.DOTALL)
+    code = re.sub(r"'''.*?'''", "", code, flags=re.DOTALL)
+    # HTML/XML comments
+    code = re.sub(r"<!--.*?-->", "", code, flags=re.DOTALL)
+
+    # Remove single-line comments (// for C-like languages, # for Python/shell/etc.)
     code = re.sub(r"//.*$", "", code, flags=re.MULTILINE)
     code = re.sub(r"#.*$", "", code, flags=re.MULTILINE)
 
-    # Remove multi-line comments (/* */ and """ """)
-    code = re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL)
-    code = re.sub(r'""".*?"""', "", code, flags=re.DOTALL)
-    code = re.sub(r"'''.*?'''", "", code, flags=re.DOTALL)
-
-    # Remove docstrings (strings at the beginning of functions/classes)
-    # This is a simplified approach - for more robust handling, you might need AST parsing
-    code = re.sub(r'^\s*""".*?"""\s*$', "", code, flags=re.MULTILINE | re.DOTALL)
-    code = re.sub(r"^\s*'''.*?'''\s*$", "", code, flags=re.MULTILINE | re.DOTALL)
-
-    # Normalize whitespace: replace multiple spaces/tabs with single space, remove trailing spaces
+    # Normalize all whitespace (spaces, tabs, newlines) to single space
+    # This collapses the code into a single line, ignoring all formatting differences
     code = re.sub(r"\s+", " ", code)
-    code = re.sub(r" +$", "", code, flags=re.MULTILINE)
-
-    # Remove empty lines
-    code = re.sub(r"\n\s*\n", "\n", code)
 
     # Strip leading/trailing whitespace
     code = code.strip()
