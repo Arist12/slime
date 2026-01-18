@@ -14,24 +14,15 @@ load_dotenv()
 
 
 MODEL_DEPLOYMENTS = {
-    "gpt-4o": "deepprompt-gpt-4o-2024-08-06-global",
     "gpt-41": "deepprompt-gpt-4.1-2025-04-14-global",
-    "gpt-41-mini": "deepprompt-gpt-4.1-mini-2025-04-14-global",
-    "gpt-5": "deepprompt-gpt-5-2025-08-07-global",
+    "gpt-5": "gpt-5",
     "gpt-5-mini": "deepprompt-gpt-5-mini-2025-08-07-global",
     "gpt-5-nano": "deepprompt-gpt-5-nano-2025-08-07-global",
-    "claude-sonnet-4": "claude-sonnet-4-0",
+    "claude-sonnet-45": "claude-sonnet-4-5",
+    "claude-haiku-45": "claude-haiku-4-5"
 }
 
-BENCHMARKS = {
-    "fast_edit_v0": "./benchmarks/fast_editing_benchmark_v0.jsonl",
-    "fast_edit_v1": "./benchmarks/fast_editing_benchmark_v1.jsonl",
-    "fast_edit_v2": "./benchmarks/fast_editing_benchmark_v2.jsonl",
-    "fast_edit_v3": "./benchmarks/fast_editing_benchmark_v3.jsonl",
-    "find_replace": "./benchmarks/find_replace_benchmark.jsonl",
-    "fully_rewrite": "./benchmarks/fully_rewrite_benchmark.jsonl",
-    "new": "/mnt/local/yikai/slime/data/llm_code_editing_test.jsonl"
-}
+BENCHMARKS_PATH = "./benchmarks/llm_code_editing_test.jsonl"
 
 
 class EvaluationRunner:
@@ -72,7 +63,7 @@ class EvaluationRunner:
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                max_completion_tokens=16384,
+                max_completion_tokens=32768,
                 extra_body={
                     "chat_template_kwargs": {"enable_thinking": True},
                     "separate_reasoning": False
@@ -82,18 +73,21 @@ class EvaluationRunner:
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                max_completion_tokens=16384
+                max_completion_tokens=32768
             )
         return response.choices[0].message.content
 
     async def _get_anthropic_response(self, user_prompt: str) -> str:
         """Get response from anthropic api"""
-        response = await self.client.messages.create(
+        response_text = ""
+        async with self.client.messages.stream(
             model=self.model,
-            max_tokens=16384,
+            max_tokens=32768,
             messages=[{"role": "user", "content": user_prompt}],
-        )
-        return response.content[0].text
+        ) as stream:
+            async for text in stream.text_stream:
+                response_text += text
+        return response_text
 
     async def process_single_item(self, item: dict[str, Any], item_id: int) -> dict[str, Any]:
         """Process a single benchmark item and return the result."""
@@ -148,41 +142,26 @@ async def main():
         choices=["Qwen/Qwen3-4B", "Qwen/Qwen3-8B"]+list(MODEL_DEPLOYMENTS.keys()),
         help="Model to use for evaluation",
     )
-    parser.add_argument("--sglang_port", type=int, default=30000, help="Port to use for evaluation")
-    parser.add_argument(
-        "--benchmark",
-        choices=["fast_edit_v0", "fast_edit_v1", "fast_edit_v2", "fast_edit_v3", "find_replace", "fully_rewrite", "new", "all", "both"],
-        default="new",
-        help="Which benchmarks to run. 'all' will run fast_edit_v2, find_replace, and fully_rewrite by default",
-    )
+    parser.add_argument("--port", type=int, default=30000, help="Port to use for evaluation")
     parser.add_argument("--max_concurrent", type=int, default=500, help="Maximum number of concurrent API calls")
     parser.add_argument("--tag", type=str, default="qwen", help="Tag to include in the output file name")
     parser.add_argument("--output_dir", default="./results", help="Directory to save results")
 
     args = parser.parse_args()
-    if args.model in MODEL_DEPLOYMENTS:
-        args.tag = args.model
 
     # Sample Run:
-    # python run_eval.py --model gpt-41 --benchmark fast_edit_v1 --tag qwenrl --max_concurrent 500
+    # python run_eval.py --model gpt-41 --tag qwenrl --max_concurrent 500
 
-    async def load_and_run_benchmark(benchmark_name: str, tag: str):
-        print(f"Loading {benchmark_name} benchmark...")
-        benchmark_data = load_from_jsonl(BENCHMARKS[benchmark_name])
-        output_file = os.path.join(args.output_dir, f"{tag}_{benchmark_name}_results.jsonl")
-        print(f"Running evaluation on {benchmark_name} benchmark with {args.model}...")
+    async def load_and_run_benchmark(tag: str):
+        print(f"Loading  benchmark...")
+        benchmark_data = load_from_jsonl(BENCHMARKS_PATH)
+        output_file = os.path.join(args.output_dir, f"{tag}_new_results.jsonl")
+        print(f"Running evaluation on llm_code_editing_test benchmark with {args.model}...")
         await runner.run_evaluation(benchmark_data, output_file, args.max_concurrent)
 
     os.makedirs(args.output_dir, exist_ok=True)
-    runner = EvaluationRunner(args.model, args.sglang_port)
-    if args.benchmark == "all":
-        for benchmark_name in BENCHMARKS:
-            await load_and_run_benchmark(benchmark_name, args.tag)
-    elif args.benchmark == "both":
-        await load_and_run_benchmark("find_replace", args.tag)
-        await load_and_run_benchmark("fully_rewrite", args.tag)
-    else:
-        await load_and_run_benchmark(args.benchmark, args.tag)
+    runner = EvaluationRunner(args.model, args.port)
+    await load_and_run_benchmark(args.tag)
 
     print("Evaluation completed!")
 

@@ -1,10 +1,4 @@
-import difflib
 import re
-from typing import Optional, Tuple
-
-from transformers import AutoTokenizer
-
-tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-4B")
 
 
 def code_rm_simple(response: str, label: str, metadata: dict) -> float:

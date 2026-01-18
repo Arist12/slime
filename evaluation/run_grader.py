@@ -1,12 +1,10 @@
 import argparse
-import json
-from typing import Any, Callable
+from typing import Any
 from tqdm import tqdm
-from utils import load_from_jsonl, save_to_jsonl, calculate_token_consumption, extract_model_code, normalize_code, get_qwen_tokenizer, code_edit_grader
-from transformers import AutoTokenizer
+from utils import load_from_jsonl, save_to_jsonl, normalize_code, code_edit_grader
 
 
-def grade_code_edit_benchmark(result_file: str, tokenizer: AutoTokenizer) -> dict[str, Any]:
+def grade_code_edit_benchmark(result_file: str) -> dict[str, Any]:
     """Grade code edit benchmark results that can handle all types of benchmarks."""
 
     # Load results
@@ -15,18 +13,14 @@ def grade_code_edit_benchmark(result_file: str, tokenizer: AutoTokenizer) -> dic
 
     stats = {
         "total_samples": 0,
-        "exact_matches": 0,
         "normalized_matches": 0,
         "find_replace_attempts": 0,
-        "find_replace_exact_matches": 0,
         "find_replace_normalized_matches": 0,
         "find_replace_format_correct": 0,
         "fully_rewrite_attempts": 0,
-        "fully_rewrite_exact_matches": 0,
         "fully_rewrite_normalized_matches": 0,
         "fully_rewrite_format_correct": 0,
         "format_failures": 0,
-        "total_tokens": 0
     }
 
     for result in tqdm(results, desc="Grading samples"):
@@ -37,43 +31,33 @@ def grade_code_edit_benchmark(result_file: str, tokenizer: AutoTokenizer) -> dic
         ground_truth = result["ground_truth"]
         model_response = result["model_response"]
 
+        if "</think>" in model_response:
+            model_response = model_response.split("</think>")[1]
+
         # Determine edit mode and extract result
         edit_mode, format_success, extracted_code = code_edit_grader(model_response, original_code)
 
         # Calculate matches
         if format_success:
-            exact_match = extracted_code == ground_truth
             normalized_match = normalize_code(extracted_code) == normalize_code(ground_truth)
         else:
-            exact_match = False
             normalized_match = False
-
-        token_consumption = calculate_token_consumption(tokenizer, model_response)
-
 
         ######### Add grading results to the result object ########
         result["edit_mode"] = edit_mode
         result["format_success"] = format_success
-        result["exact_match"] = exact_match
         result["normalized_match"] = normalized_match
-        result["token_consumption"] = token_consumption
         result["extracted_code"] = extracted_code
         ###########################################################
 
         # Update statistics
-        if exact_match:
-            stats["exact_matches"] += 1
         if normalized_match:
             stats["normalized_matches"] += 1
-
-        stats["total_tokens"] += token_consumption
 
         if edit_mode == "find_replace":
             stats["find_replace_attempts"] += 1
             if format_success:
                 stats["find_replace_format_correct"] += 1
-            if exact_match:
-                stats["find_replace_exact_matches"] += 1
             if normalized_match:
                 stats["find_replace_normalized_matches"] += 1
 
@@ -81,11 +65,10 @@ def grade_code_edit_benchmark(result_file: str, tokenizer: AutoTokenizer) -> dic
             stats["fully_rewrite_attempts"] += 1
             if format_success:
                 stats["fully_rewrite_format_correct"] += 1
-            if exact_match:
-                stats["fully_rewrite_exact_matches"] += 1
             if normalized_match:
                 stats["fully_rewrite_normalized_matches"] += 1
-        else:
+
+        if not format_success:
             stats["format_failures"] += 1
 
     return results, stats
@@ -103,14 +86,10 @@ def print_statistics(stats: dict[str, Any], file_path: str):
         return
 
     # Overall statistics
-    exact_acc = stats["exact_matches"] / total
     normalized_acc = stats["normalized_matches"] / total
-    avg_tokens = stats["total_tokens"] / total
 
     print(f"Total samples: {total}")
-    print(f"Overall exact match accuracy: {exact_acc:.4f} ({stats['exact_matches']}/{total})")
     print(f"Overall normalized match accuracy: {normalized_acc:.4f} ({stats['normalized_matches']}/{total})")
-    print(f"Average token consumption: {avg_tokens:.2f}")
 
     print("\n" + "-"*40)
     print("FIND-REPLACE ANALYSIS")
@@ -119,12 +98,10 @@ def print_statistics(stats: dict[str, Any], file_path: str):
     fr_attempts = stats["find_replace_attempts"]
     if fr_attempts > 0:
         fr_rate = fr_attempts / total
-        fr_exact_rate = stats["find_replace_exact_matches"] / fr_attempts
         fr_normalized_rate = stats["find_replace_normalized_matches"] / fr_attempts
         fr_format_rate = stats["find_replace_format_correct"] / fr_attempts
 
         print(f"Find-replace attempts: {fr_rate:.4f} ({fr_attempts}/{total})")
-        print(f"Find-replace exact match rate: {fr_exact_rate:.4f} ({stats['find_replace_exact_matches']}/{fr_attempts})")
         print(f"Find-replace normalized match rate: {fr_normalized_rate:.4f} ({stats['find_replace_normalized_matches']}/{fr_attempts})")
         print(f"Find-replace format correct rate: {fr_format_rate:.4f} ({stats['find_replace_format_correct']}/{fr_attempts})")
     else:
@@ -137,12 +114,10 @@ def print_statistics(stats: dict[str, Any], file_path: str):
     fw_attempts = stats["fully_rewrite_attempts"]
     if fw_attempts > 0:
         fw_rate = fw_attempts / total
-        fw_exact_rate = stats["fully_rewrite_exact_matches"] / fw_attempts
         fw_normalized_rate = stats["fully_rewrite_normalized_matches"] / fw_attempts
         fw_format_rate = stats["fully_rewrite_format_correct"] / fw_attempts
 
         print(f"Fully rewrite attempts: {fw_rate:.4f} ({fw_attempts}/{total})")
-        print(f"Fully rewrite exact match rate: {fw_exact_rate:.4f} ({stats['fully_rewrite_exact_matches']}/{fw_attempts})")
         print(f"Fully rewrite normalized match rate: {fw_normalized_rate:.4f} ({stats['fully_rewrite_normalized_matches']}/{fw_attempts})")
         print(f"Fully rewrite format correct rate: {fw_format_rate:.4f} ({stats['fully_rewrite_format_correct']}/{fw_attempts})")
     else:
@@ -154,6 +129,7 @@ def print_statistics(stats: dict[str, Any], file_path: str):
 
     format_failure_rate = stats["format_failures"] / total
     print(f"Format failure rate: {format_failure_rate:.4f} ({stats['format_failures']}/{total})")
+    print(f"Format Success Rate: {1 - stats['format_failures'] / total:.4f} ({500 - stats['format_failures']}/{total})")
 
 
 def main():
@@ -161,13 +137,9 @@ def main():
     parser.add_argument("result_file", help="Path to the result JSONL file")
     args = parser.parse_args()
 
-    tokenizer = get_qwen_tokenizer()
-
     # Grade results
-    graded_results, stats = grade_code_edit_benchmark(args.result_file, tokenizer)
-    # Print statistics
+    graded_results, stats = grade_code_edit_benchmark(args.result_file)
     print_statistics(stats, args.result_file)
-    # Save graded results
     save_to_jsonl(graded_results, args.result_file.replace(".jsonl", "_graded.jsonl"))
     print(f"\nGraded results saved to: {args.result_file.replace('.jsonl', '_graded.jsonl')}")
 

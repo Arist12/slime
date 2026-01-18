@@ -35,7 +35,7 @@ CKPT_ARGS=(
 )
 
 ROLLOUT_ARGS=(
-   --prompt-data /mnt/local/yikai/slime/data/code_editing_new_train.jsonl
+   --prompt-data /mnt/local/yikai/slime/data/llm_code_editing_train.jsonl
    --input-key prompt
    --label-key label
    --metadata-key metadata
@@ -59,7 +59,7 @@ ROLLOUT_ARGS=(
 
 EVAL_ARGS=(
    --eval-interval 20
-   --eval-prompt-data code_editing /mnt/local/yikai/slime/data/code_editing_new_val.jsonl
+   --eval-prompt-data code_editing /mnt/local/yikai/slime/data/llm_code_editing_val.jsonl
    --n-samples-per-eval-prompt 5
    --eval-max-response-len 8192
    --eval-top-p 0.7
@@ -103,8 +103,8 @@ OPTIMIZER_ARGS=(
 
 WANDB_ARGS=(
    --use-wandb
-   --wandb-project slime-dev
-   --wandb-group qwen3-8B-new-code-edit-simple-reward
+   --wandb-project code-edit
+   --wandb-group qwen3-8B
    --wandb-key ${WANDB_KEY}
 )
 

@@ -67,7 +67,7 @@ def extract_result(llm_response: str) -> bool:
 
 async def evaluate_single_result(client: AsyncAzureOpenAI, semaphore: asyncio.Semaphore, result: dict, diff: dict):
     """Evaluate a single result asynchronously."""
-    if result["exact_match"] or result["normalized_match"]:
+    if result["normalized_match"]:
         result["gpt_eval_match"] = True
         result["gpt_eval_analysis"] = "Rule-based matching"
         return
@@ -133,7 +133,7 @@ async def evaluate_diffs_async(results: list[dict], diffs: list[dict],
 async def main():
     parser = argparse.ArgumentParser(description="Grade evaluation results")
     parser.add_argument("result_file", help="Path to the results JSONL file")
-    parser.add_argument("--max-concurrent", type=int, default=15,
+    parser.add_argument("--max-concurrent", type=int, default=20,
                        help="Maximum number of concurrent API requests")
 
     args = parser.parse_args()
