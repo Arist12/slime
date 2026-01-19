@@ -15,7 +15,7 @@ def code_rm_simple(response: str, label: str, metadata: dict, mode: str = "adapt
         Float score between 0.0 and 1.0
     """
     original_code = metadata["original_code"]
-    language = metadata["language"]
+    language = metadata["langauge"]
 
     if not response or not label:
         return 0.0
