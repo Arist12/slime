@@ -29,20 +29,20 @@ source "${SCRIPT_DIR}/models/qwen3-8B.sh"
 CKPT_ARGS=(
    --hf-checkpoint /mnt/local/hf_cache/hub/Qwen3-8B
    --ref-load /mnt/local/hf_cache/hub/Qwen3-8B_torch_dist
-   --load /mnt/local/hf_cache/hub/Qwen3-8B_slime/
-   --save /mnt/local/hf_cache/hub/Qwen3-8B_slime/
+   --load /mnt/local/hf_cache/hub/Qwen3-8B_slime_full_rewrite/
+   --save /mnt/local/hf_cache/hub/Qwen3-8B_slime_full_rewrite/
    --save-interval 40
 )
 
 ROLLOUT_ARGS=(
-   --prompt-data /mnt/local/yikai/slime/data/llm_code_editing_train.jsonl
+   --prompt-data /mnt/local/yikai/slime/data/full_rewrite_train.jsonl
    --input-key prompt
    --label-key label
    --metadata-key metadata
    --apply-chat-template
    --rollout-shuffle
 
-   --rm-type code_rm_simple
+   --rm-type code_rm_full_rewrite
 
    --num-rollout 521
    --rollout-batch-size 32
@@ -59,7 +59,7 @@ ROLLOUT_ARGS=(
 
 EVAL_ARGS=(
    --eval-interval 20
-   --eval-prompt-data code_editing /mnt/local/yikai/slime/data/llm_code_editing_val.jsonl
+   --eval-prompt-data code_editing /mnt/local/yikai/slime/data/full_rewrite_val.jsonl
    --n-samples-per-eval-prompt 5
    --eval-max-response-len 8192
    --eval-top-p 0.7
