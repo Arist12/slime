@@ -1,25 +1,35 @@
 import re
 
 
-def code_rm_simple(response: str, label: str, metadata: dict) -> float:
+def code_rm_simple(response: str, label: str, metadata: dict, mode: str = "adaptive") -> float:
     """
-    Reward model for adaptive code editing that supports both find_replace and fully_rewrite formats.
+    Reward model for adaptive code editing that supports both find_replace and full_rewrite formats.
 
     Args:
         response: Model's response containing either find_replace blocks or fully rewritten code
         label: Ground truth code (the expected final result)
         metadata: Dictionary containing 'original_code' and 'language'
+        mode: Editing mode, one of "adaptive", "find_replace", "full_rewrite"
 
     Returns:
         Float score between 0.0 and 1.0
     """
     original_code = metadata["original_code"]
+    language = metadata["language"]
 
     if not response or not label:
         return 0.0
 
+    # Extract the model's response from the think section
+    if "</think>" in response:
+        response = response.split("</think>", 1)[1].strip()
+
+
     # Determine which format the model used and extract the modified code
-    modified_code = extract_model_code(response, original_code)
+    if mode == "adaptive" or mode == "find_replace":
+        modified_code = extract_search_replace(response, original_code, mode)
+    elif mode == "full_rewrite":
+        modified_code = extract_full_rewrite(response, language)
 
     if modified_code is None:
         return 0.0
@@ -30,11 +40,7 @@ def code_rm_simple(response: str, label: str, metadata: dict) -> float:
     return 0
 
 
-def extract_model_code(response: str, original_code: str) -> str | None:
-    """
-    Extract model code from response.
-    Handles both targeted edits (non-empty SEARCH) and full rewrites (empty SEARCH).
-    """
+def extract_search_replace(response: str, original_code: str, mode: str = "adaptive") -> str | None:
     try:
         # Pattern to match SEARCH/REPLACE blocks (aligned with LLMFileEditor format)
         pattern = r"<<<<<<< SEARCH\n(.*?)=======\n(.*?)>>>>>>> REPLACE"
@@ -48,7 +54,7 @@ def extract_model_code(response: str, original_code: str) -> str | None:
         first_replace = matches[0].group(2)
 
         # Check if this is a full rewrite (empty search block)
-        if first_search.strip() == "":
+        if mode == "adaptive" and first_search.strip() == "":
             # Full rewrite mode: must have exactly one SEARCH/REPLACE block
             if len(matches) > 1:
                 return None
@@ -73,6 +79,24 @@ def extract_model_code(response: str, original_code: str) -> str | None:
             modified_code = modified_code.replace(search_block, replace_block, 1)
 
         return modified_code
+
+    except Exception:
+        return None
+
+
+def extract_full_rewrite(response: str, language: str) -> str | None:
+    try:
+        # Pattern to match standard markdown code blocks with language tag
+        pattern = rf"```{language}\n(.*?)\n```"
+        match = re.search(pattern, response, re.DOTALL)
+
+        if not match:
+            return None
+
+        # Extract the code content
+        code_content = match.group(1).rstrip("\n")
+
+        return code_content
 
     except Exception:
         return None

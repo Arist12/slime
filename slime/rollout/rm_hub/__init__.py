@@ -51,12 +51,14 @@ async def async_rm(args, sample: Sample, **kwargs):
         return 1 if grade_answer_verl(response, label) else 0
     elif rm_type == "f1":
         return f1_score(response, label)[0]
-    elif rm_type == "code_rm_simple":
+    elif rm_type.startswith("code_rm_"):
+        mode = rm_type.removeprefix("code_rm_")
+        assert mode in ["adaptive", "find_replace", "full_rewrite"], "Invalid mode for code_rm"
         metadata = sample.metadata
         assert isinstance(metadata, dict), "metadata must be a dictionary"
-        return code_rm_simple(response, label, metadata)
+        return code_rm_simple(response, label, metadata, mode=mode)
     else:
-        raise NotImplementedError(f"Rule-based RM for {type} is not implemented.")
+        raise NotImplementedError(f"Rule-based RM for {rm_type} is not implemented.")
 
 
 async def batched_async_rm(
