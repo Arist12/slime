@@ -94,6 +94,7 @@ class EvaluationRunner:
         user_prompt = item["prompt"][0]["content"]
         ground_truth = item["label"]
         original_code = item["metadata"]["original_code"]
+        language = item["metadata"]["langauge"]
 
         model_response = await self.get_model_response(user_prompt)
 
@@ -103,6 +104,7 @@ class EvaluationRunner:
             "original_code": original_code,
             "ground_truth": ground_truth,
             "model_response": model_response,
+            "language": language,
         }
 
     async def run_evaluation(self, benchmark_data: list[dict[str, Any]], output_file: str, max_concurrent: int = 10):

@@ -3,21 +3,61 @@ import re
 from typing import Any
 
 
-def code_edit_grader(response: str, original_code: str) -> tuple[str, bool, str]:
+def code_edit_grader(response: str, original_code: str, mode: str = "adaptive") -> tuple[str, bool, str]:
     """
     Determine the format used and whether it was successful.
+    Follows the exact logic from code_rm.py
+
+    Args:
+        response: Model's response containing code edits
+        original_code: Original code before edits
+        mode: Editing mode, one of "adaptive", "find_replace", "full_rewrite"
+
     Returns: (edit_mode, format_success, extracted_code)
     """
-    edit_mode, extracted_code = extract_model_code(response, original_code)
+    edit_mode, extracted_code = extract_model_code(response, original_code, mode)
     format_success = extracted_code is not None
     return edit_mode, format_success, extracted_code
 
 
-def extract_model_code(response: str, original_code: str) -> tuple[str | None, str | None]:
+def extract_model_code(response: str, original_code: str, mode: str = "adaptive") -> tuple[str | None, str | None]:
     """
-    Extract model code from response.
-    Handles both targeted edits (non-empty SEARCH) and full rewrites (empty SEARCH).
+    Extract model code from response based on the specified mode.
+    Follows the exact logic from code_rm.py:
+    - adaptive/find_replace: use SEARCH/REPLACE blocks (adaptive allows empty SEARCH)
+    - full_rewrite: use markdown code blocks
+
+    Args:
+        response: Model's response containing code edits
+        original_code: Original code before edits
+        mode: Editing mode, one of "adaptive", "find_replace", "full_rewrite"
+
     Returns: (edit_mode, extracted_code) or (None, None) on failure.
+    """
+    try:
+        if mode == "adaptive" or mode == "find_replace":
+            # Use SEARCH/REPLACE blocks, passing the mode to handle empty SEARCH
+            return extract_search_replace(response, original_code, mode)
+        elif mode == "full_rewrite":
+            # Use markdown code blocks
+            return extract_full_rewrite(response)
+        else:
+            return None, None
+    except Exception:
+        return None, None
+
+
+def extract_search_replace(response: str, original_code: str, mode: str = "adaptive") -> tuple[str | None, str | None]:
+    """
+    Extract code using SEARCH/REPLACE blocks.
+    This follows the exact logic from code_rm.py's extract_search_replace function.
+
+    Args:
+        response: Model's response
+        original_code: Original code before edits
+        mode: "adaptive" allows empty SEARCH (full rewrite), "find_replace" requires non-empty SEARCH
+
+    Returns: (edit_mode, extracted_code) or (edit_mode, None) on failure.
     """
     try:
         # Pattern to match SEARCH/REPLACE blocks (aligned with LLMFileEditor format)
@@ -32,7 +72,7 @@ def extract_model_code(response: str, original_code: str) -> tuple[str | None, s
         first_replace = matches[0].group(2)
 
         # Check if this is a full rewrite (empty search block)
-        if first_search.strip() == "":
+        if mode == "adaptive" and first_search.strip() == "":
             # Full rewrite mode: must have exactly one SEARCH/REPLACE block
             if len(matches) > 1:
                 return "fully_rewrite", None
@@ -60,6 +100,31 @@ def extract_model_code(response: str, original_code: str) -> tuple[str | None, s
 
     except Exception:
         return None, None
+
+
+def extract_full_rewrite(response: str) -> tuple[str | None, str | None]:
+    """
+    Extract code from markdown code blocks for full rewrite mode.
+    This follows the exact logic from code_rm.py's extract_full_rewrite function.
+    Uses a generic pattern to match any programming language.
+
+    Returns: ("fully_rewrite", extracted_code) or ("fully_rewrite", None) on failure.
+    """
+    try:
+        # Pattern to match standard markdown code blocks with any language tag
+        # \w+ matches one or more word characters (letters, digits, underscore)
+        pattern = r"```\w+\n(.*?)\n```"
+        match = re.search(pattern, response, re.DOTALL)
+
+        if not match:
+            return "fully_rewrite", None
+
+        # Extract the code content
+        code_content = match.group(1).rstrip("\n")
+        return "fully_rewrite", code_content
+
+    except Exception:
+        return "fully_rewrite", None
 
 
 def normalize_code(code: str) -> str:

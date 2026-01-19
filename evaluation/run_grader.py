@@ -4,11 +4,17 @@ from tqdm import tqdm
 from utils import load_from_jsonl, save_to_jsonl, normalize_code, code_edit_grader
 
 
-def grade_code_edit_benchmark(result_file: str) -> dict[str, Any]:
-    """Grade code edit benchmark results that can handle all types of benchmarks."""
+def grade_code_edit_benchmark(result_file: str, mode: str = "adaptive") -> dict[str, Any]:
+    """Grade code edit benchmark results that can handle all types of benchmarks.
+
+    Args:
+        result_file: Path to the result JSONL file
+        mode: Editing mode to evaluate, one of "adaptive", "find_replace", "full_rewrite"
+    """
 
     # Load results
     print(f"Loading results from {result_file}...")
+    print(f"Evaluation mode: {mode}")
     results = load_from_jsonl(result_file)
 
     stats = {
@@ -35,7 +41,9 @@ def grade_code_edit_benchmark(result_file: str) -> dict[str, Any]:
             model_response = model_response.split("</think>")[1]
 
         # Determine edit mode and extract result
-        edit_mode, format_success, extracted_code = code_edit_grader(model_response, original_code)
+        edit_mode, format_success, extracted_code = code_edit_grader(
+            model_response, original_code, mode=mode
+        )
 
         # Calculate matches
         if format_success:
@@ -135,10 +143,17 @@ def print_statistics(stats: dict[str, Any], file_path: str):
 def main():
     parser = argparse.ArgumentParser(description="Grade unified benchmark evaluation results")
     parser.add_argument("result_file", help="Path to the result JSONL file")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="adaptive",
+        choices=["adaptive", "find_replace", "full_rewrite"],
+        help="Editing mode to evaluate (default: adaptive)"
+    )
     args = parser.parse_args()
 
     # Grade results
-    graded_results, stats = grade_code_edit_benchmark(args.result_file)
+    graded_results, stats = grade_code_edit_benchmark(args.result_file, mode=args.mode)
     print_statistics(stats, args.result_file)
     save_to_jsonl(graded_results, args.result_file.replace(".jsonl", "_graded.jsonl"))
     print(f"\nGraded results saved to: {args.result_file.replace('.jsonl', '_graded.jsonl')}")
