@@ -22,7 +22,13 @@ MODEL_DEPLOYMENTS = {
     "claude-haiku-45": "claude-haiku-4-5"
 }
 
-BENCHMARKS_PATH = "./benchmarks/llm_code_editing_test.jsonl"
+BENCHMARKS_PATHS = {
+    "adpative": "./benchmarks/llm_code_editing_test.jsonl",
+    "find_replace": "./benchmarks/find_replace_test.jsonl",
+    "full_rewrite": "./benchmarks/full_rewrite_test.jsonl",
+}
+
+
 
 
 class EvaluationRunner:
@@ -147,18 +153,19 @@ async def main():
     parser.add_argument("--port", type=int, default=30000, help="Port to use for evaluation")
     parser.add_argument("--max_concurrent", type=int, default=500, help="Maximum number of concurrent API calls")
     parser.add_argument("--tag", type=str, default="qwen", help="Tag to include in the output file name")
+    parser.add_argument("--benchmark", type=str, default="adpative", choices=list(BENCHMARKS_PATHS.keys()), help="Benchmark to use for evaluation")
     parser.add_argument("--output_dir", default="./results", help="Directory to save results")
 
     args = parser.parse_args()
 
     # Sample Run:
-    # python run_eval.py --model gpt-41 --tag qwenrl --max_concurrent 500
+    # python run_eval.py --tag qwen3-8b-rl --benchmark adpative
 
     async def load_and_run_benchmark(tag: str):
         print(f"Loading  benchmark...")
-        benchmark_data = load_from_jsonl(BENCHMARKS_PATH)
-        output_file = os.path.join(args.output_dir, f"{tag}_new_results.jsonl")
-        print(f"Running evaluation on llm_code_editing_test benchmark with {args.model}...")
+        benchmark_data = load_from_jsonl(BENCHMARKS_PATHS[args.benchmark])
+        output_file = os.path.join(args.output_dir, f"{tag}_{args.benchmark}_results.jsonl")
+        print(f"Running evaluation on {args.benchmark} benchmark with {args.model}...")
         await runner.run_evaluation(benchmark_data, output_file, args.max_concurrent)
 
     os.makedirs(args.output_dir, exist_ok=True)
